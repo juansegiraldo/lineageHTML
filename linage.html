@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Lineage Visualization</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #032E61;
+            min-height: 100vh;
+            padding: 20px;
+            color: black;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: #032E61;
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .controls {
+            background: white;
+            padding: 20px;
+            border-bottom: 1px solid #032E61;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 200px;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 12px 40px 12px 15px;
+            border: 2px solid #032E61;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+            color: black;
+        }
+
+        .search-box input:focus {
+            border-color: #032E61;
+            outline: none;
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6c757d;
+        }
+
+        .filter-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            padding: 8px 16px;
+            border: 2px solid #032E61;
+            background: white;
+            color: #032E61;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        .filter-btn.active, .filter-btn:hover {
+            background: #032E61;
+            color: white;
+        }
+
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-left: auto;
+        }
+
+        .stat {
+            text-align: center;
+            min-width: 80px;
+        }
+
+        .stat-number {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #032E61;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            color: black;
+        }
+
+        .content {
+            display: flex;
+            height: calc(100vh - 300px);
+            min-height: 600px;
+        }
+
+        .schema-list {
+            width: 300px;
+            background: white;
+            border-right: 1px solid #032E61;
+            overflow-y: auto;
+        }
+
+        .schema-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid #032E61;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            color: black;
+        }
+
+        .schema-item:hover {
+            background: #f8f9fa;
+        }
+
+        .schema-item.active {
+            background: #032E61;
+            color: white;
+        }
+
+        .schema-name {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .schema-count {
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+
+        .table-grid {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #fff;
+        }
+
+        .table-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        .table-card {
+            background: white;
+            border: 1px solid #032E61;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .table-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 15px rgba(0,0,0,0.15);
+        }
+
+        .table-header {
+            background: #032E61;
+            color: white;
+            padding: 15px 20px;
+            position: relative;
+        }
+
+        .table-name {
+            font-weight: 600;
+            font-size: 1.1em;
+            margin-bottom: 5px;
+        }
+
+        .table-schema {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .column-count {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255,255,255,0.2);
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+        }
+
+        .columns-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .column-item {
+            padding: 10px 20px;
+            border-bottom: 1px solid #f8f9fa;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: black;
+        }
+
+        .column-item:last-child {
+            border-bottom: none;
+        }
+
+        .column-name {
+            font-weight: 500;
+            color: black;
+        }
+
+        .column-type {
+            background: #f8f9fa;
+            color: #032E61;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: 500;
+        }
+
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+            font-size: 1.2em;
+            color: black;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 40px;
+            color: black;
+        }
+
+        .no-results h3 {
+            margin-bottom: 10px;
+            color: black;
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                flex-direction: column;
+                height: auto;
+            }
+
+            .schema-list {
+                width: 100%;
+                max-height: 200px;
+            }
+
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .stats {
+                margin-left: 0;
+                justify-content: center;
+            }
+
+            .table-cards {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .highlight {
+            background-color: yellow;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Data Lineage Visualization</h1>
+            <p>Explore your database schema structure and relationships</p>
+        </div>
+
+        <div class="controls">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Search tables, columns, or schemas...">
+                <span class="search-icon">=</span>
+            </div>
+
+            <div class="filter-buttons">
+                <button class="filter-btn active" data-filter="all">All</button>
+                <button class="filter-btn" data-filter="STRING">String</button>
+                <button class="filter-btn" data-filter="DECIMAL">Decimal</button>
+                <button class="filter-btn" data-filter="TIMESTAMP">Timestamp</button>
+            </div>
+
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-number" id="schemaCount">0</div>
+                    <div class="stat-label">Schemas</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number" id="tableCount">0</div>
+                    <div class="stat-label">Tables</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number" id="columnCount">0</div>
+                    <div class="stat-label">Columns</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="schema-list" id="schemaList">
+                <div class="loading">Loading schemas...</div>
+            </div>
+
+            <div class="table-grid">
+                <div id="tableCards" class="table-cards">
+                    <div class="loading">Loading data...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allData = [];
+        let filteredData = [];
+        let selectedSchema = 'all';
+        let selectedDataType = 'all';
+        let searchTerm = '';
+
+        // Load and parse JSON data
+        async function loadData() {
+            try {
+                const response = await fetch('data.json');
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const text = await response.text();
+
+                // Parse the JSON (remove outer quotes and unescape if it's a string)
+                let jsonText = text.trim();
+
+                // Check if the entire content is wrapped in quotes (string format)
+                if (jsonText.startsWith('"') && jsonText.endsWith('"')) {
+                    // Remove outer quotes and unescape inner quotes
+                    jsonText = jsonText.slice(1, -1);
+                    // Unescape the JSON string
+                    jsonText = jsonText.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+                }
+
+                allData = JSON.parse(jsonText);
+
+                console.log('Loaded data:', allData.length, 'records');
+                console.log('Sample record:', allData[0]);
+
+                initializeApp();
+            } catch (error) {
+                console.error('Error loading data:', error);
+
+                // Show helpful error message based on the error type
+                let errorMessage = 'Please check the data.json file format.';
+                if (error.message.includes('Failed to fetch') || error.message.includes('CORS')) {
+                    errorMessage = 'Cannot load data.json due to browser security restrictions. Please serve this page from a web server (e.g., python -m http.server) or use the file input below.';
+                }
+
+                document.getElementById('tableCards').innerHTML = `
+                    <div class="no-results">
+                        <h3>Error loading data</h3>
+                        <p>${errorMessage}</p>
+                        <p>Error: ${error.message}</p>
+                        <br>
+                        <div style="margin-top: 20px;">
+                            <p><strong>Alternative: Load file manually</strong></p>
+                            <input type="file" id="fileInput" accept=".json" style="margin: 10px 0;">
+                            <br>
+                            <button onclick="loadFileFromInput()" style="padding: 10px 20px; background: #032E61; color: white; border: none; border-radius: 5px; cursor: pointer;">Load Selected File</button>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // Alternative method to load file from input
+        function loadFileFromInput() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                alert('Please select a file first.');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    let jsonText = e.target.result.trim();
+
+                    // Check if the entire content is wrapped in quotes (string format)
+                    if (jsonText.startsWith('"') && jsonText.endsWith('"')) {
+                        // Remove outer quotes and unescape inner quotes
+                        jsonText = jsonText.slice(1, -1);
+                        // Unescape the JSON string
+                        jsonText = jsonText.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+                    }
+
+                    allData = JSON.parse(jsonText);
+                    console.log('Loaded data from file:', allData.length, 'records');
+                    initializeApp();
+                } catch (error) {
+                    console.error('Error parsing file:', error);
+                    alert('Error parsing the JSON file: ' + error.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // Initialize the application
+        function initializeApp() {
+            setupEventListeners();
+            updateStats();
+            renderSchemas();
+            filterAndRenderTables();
+        }
+
+        // Setup event listeners
+        function setupEventListeners() {
+            // Search input
+            document.getElementById('searchInput').addEventListener('input', (e) => {
+                searchTerm = e.target.value.toLowerCase();
+                filterAndRenderTables();
+            });
+
+            // Filter buttons
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                    e.target.classList.add('active');
+                    selectedDataType = e.target.dataset.filter;
+                    filterAndRenderTables();
+                });
+            });
+        }
+
+        // Update statistics
+        function updateStats() {
+            const schemas = [...new Set(allData.map(item => item.table_schema))];
+            const tables = [...new Set(allData.map(item => `${item.table_schema}.${item.table_name}`))];
+
+            document.getElementById('schemaCount').textContent = schemas.length;
+            document.getElementById('tableCount').textContent = tables.length;
+            document.getElementById('columnCount').textContent = allData.length;
+        }
+
+        // Render schema list
+        function renderSchemas() {
+            const schemas = [...new Set(allData.map(item => item.table_schema))].sort();
+            const schemaList = document.getElementById('schemaList');
+
+            let html = `
+                <div class="schema-item ${selectedSchema === 'all' ? 'active' : ''}" data-schema="all">
+                    <div class="schema-name">All Schemas</div>
+                    <div class="schema-count">${schemas.length} schemas</div>
+                </div>
+            `;
+
+            schemas.forEach(schema => {
+                const tableCount = [...new Set(allData.filter(item => item.table_schema === schema).map(item => item.table_name))].length;
+                html += `
+                    <div class="schema-item ${selectedSchema === schema ? 'active' : ''}" data-schema="${schema}">
+                        <div class="schema-name">${schema}</div>
+                        <div class="schema-count">${tableCount} tables</div>
+                    </div>
+                `;
+            });
+
+            schemaList.innerHTML = html;
+
+            // Add click handlers
+            schemaList.querySelectorAll('.schema-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    document.querySelectorAll('.schema-item').forEach(i => i.classList.remove('active'));
+                    e.currentTarget.classList.add('active');
+                    selectedSchema = e.currentTarget.dataset.schema;
+                    filterAndRenderTables();
+                });
+            });
+        }
+
+        // Filter and render tables
+        function filterAndRenderTables() {
+            // Filter data based on selected schema, data type, and search term
+            filteredData = allData.filter(item => {
+                const matchesSchema = selectedSchema === 'all' || item.table_schema === selectedSchema;
+                const matchesDataType = selectedDataType === 'all' || item.data_type === selectedDataType;
+                const matchesSearch = searchTerm === '' ||
+                    item.table_name.toLowerCase().includes(searchTerm) ||
+                    item.column_name.toLowerCase().includes(searchTerm) ||
+                    item.table_schema.toLowerCase().includes(searchTerm) ||
+                    item.data_type.toLowerCase().includes(searchTerm);
+
+                return matchesSchema && matchesDataType && matchesSearch;
+            });
+
+            renderTables();
+        }
+
+        // Render table cards
+        function renderTables() {
+            const tableCards = document.getElementById('tableCards');
+
+            if (filteredData.length === 0) {
+                tableCards.innerHTML = `
+                    <div class="no-results">
+                        <h3>No results found</h3>
+                        <p>Try adjusting your search criteria or filters.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Group data by table
+            const tables = {};
+            filteredData.forEach(item => {
+                const tableKey = `${item.table_schema}.${item.table_name}`;
+                if (!tables[tableKey]) {
+                    tables[tableKey] = {
+                        schema: item.table_schema,
+                        name: item.table_name,
+                        columns: []
+                    };
+                }
+                tables[tableKey].columns.push({
+                    name: item.column_name,
+                    type: item.data_type,
+                    tag_name: item.tag_name,
+                    tag_value: item.tag_value
+                });
+            });
+
+            // Sort tables by name
+            const sortedTables = Object.values(tables).sort((a, b) =>
+                `${a.schema}.${a.name}`.localeCompare(`${b.schema}.${b.name}`)
+            );
+
+            let html = '';
+            sortedTables.forEach(table => {
+                html += `
+                    <div class="table-card">
+                        <div class="table-header">
+                            <div class="table-name">${highlightText(table.name, searchTerm)}</div>
+                            <div class="table-schema">${highlightText(table.schema, searchTerm)}</div>
+                            <div class="column-count">${table.columns.length} cols</div>
+                        </div>
+                        <div class="columns-list">
+                            ${table.columns.map(column => `
+                                <div class="column-item">
+                                    <div class="column-name">${highlightText(column.name, searchTerm)}</div>
+                                    <div class="column-type">${highlightText(column.type, searchTerm)}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+
+            tableCards.innerHTML = html;
+        }
+
+        // Highlight search text
+        function highlightText(text, searchTerm) {
+            if (!searchTerm) return text;
+            const regex = new RegExp(`(${searchTerm})`, 'gi');
+            return text.replace(regex, '<span class="highlight">$1</span>');
+        }
+
+        // Load data when page loads
+        document.addEventListener('DOMContentLoaded', loadData);
+    </script>
+</body>
+</html>

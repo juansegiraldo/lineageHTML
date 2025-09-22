@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Lineage Visualization</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        .lineage-container {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #032E61 0%, #0a4c87 50%, #1565c0 100%);
+            min-height: 600px;
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        .lineage-inner {
+            max-width: 100%;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #032E61 0%, #1565c0 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 1.8em;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .header p {
+            font-size: 1em;
+            opacity: 0.9;
+        }
+
+        .controls {
+            background: #f8f9fa;
+            padding: 15px;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .file-upload {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .file-input-label {
+            padding: 10px 20px;
+            background: #28a745;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+
+        .file-input-label:hover {
+            background: #218838;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 200px;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 10px 35px 10px 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .search-box input:focus {
+            border-color: #007bff;
+            outline: none;
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6c757d;
+        }
+
+        .filter-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            padding: 6px 12px;
+            border: 2px solid #007bff;
+            background: white;
+            color: #007bff;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 12px;
+        }
+
+        .filter-btn.active, .filter-btn:hover {
+            background: #007bff;
+            color: white;
+        }
+
+        .stats {
+            display: flex;
+            gap: 15px;
+        }
+
+        .stat {
+            text-align: center;
+            min-width: 60px;
+        }
+
+        .stat-number {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        .stat-label {
+            font-size: 0.8em;
+            color: #6c757d;
+        }
+
+        .content {
+            display: flex;
+            height: 500px;
+        }
+
+        .schema-list {
+            width: 250px;
+            background: #f8f9fa;
+            border-right: 1px solid #e9ecef;
+            overflow-y: auto;
+        }
+
+        .schema-item {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e9ecef;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .schema-item:hover {
+            background: #e9ecef;
+        }
+
+        .schema-item.active {
+            background: #007bff;
+            color: white;
+        }
+
+        .schema-name {
+            font-weight: 600;
+            margin-bottom: 3px;
+            font-size: 0.9em;
+        }
+
+        .schema-count {
+            font-size: 0.8em;
+            opacity: 0.8;
+        }
+
+        .table-grid {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            background: #fff;
+        }
+
+        .table-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+        }
+
+        .table-card {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.3s;
+        }
+
+        .table-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .table-header {
+            background: linear-gradient(135deg, #032E61 0%, #1565c0 100%);
+            color: white;
+            padding: 12px 15px;
+            position: relative;
+        }
+
+        .table-name {
+            font-weight: 600;
+            font-size: 1em;
+            margin-bottom: 3px;
+        }
+
+        .table-schema {
+            font-size: 0.8em;
+            opacity: 0.9;
+        }
+
+        .column-count {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255,255,255,0.2);
+            padding: 3px 6px;
+            border-radius: 10px;
+            font-size: 0.7em;
+        }
+
+        .columns-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .column-item {
+            padding: 8px 15px;
+            border-bottom: 1px solid #f8f9fa;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .column-item:last-child {
+            border-bottom: none;
+        }
+
+        .column-name {
+            font-weight: 500;
+            color: #2c3e50;
+            font-size: 0.9em;
+        }
+
+        .column-type {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 0.7em;
+            font-weight: 500;
+        }
+
+        .loading, .no-results {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+            font-size: 1em;
+            color: #6c757d;
+            flex-direction: column;
+            text-align: center;
+        }
+
+        .no-results h3 {
+            margin-bottom: 10px;
+            color: #495057;
+        }
+
+        .highlight {
+            background-color: yellow;
+            font-weight: bold;
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                flex-direction: column;
+                height: auto;
+            }
+
+            .schema-list {
+                width: 100%;
+                max-height: 150px;
+            }
+
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .table-cards {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="lineage-container">
+        <div class="lineage-inner">
+            <div class="header">
+                <h1>Visualización de Linaje de Datos</h1>
+                <p>Explora la estructura y relaciones de tu esquema de base de datos</p>
+            </div>
+
+            <div class="controls">
+                <div class="file-upload">
+                    <div class="file-input-wrapper">
+                        <input type="file" id="jsonFileInput" accept=".json" />
+                        <label for="jsonFileInput" class="file-input-label">Cargar JSON</label>
+                    </div>
+                    <span id="fileName" style="font-size: 0.9em; color: #6c757d;"></span>
+                </div>
+
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="Buscar tablas, columnas o esquemas..." disabled>
+                    <span class="search-icon">🔍</span>
+                </div>
+
+                <div class="filter-buttons">
+                    <button class="filter-btn active" data-filter="all" disabled>Todos</button>
+                    <button class="filter-btn" data-filter="STRING" disabled>Texto</button>
+                    <button class="filter-btn" data-filter="DECIMAL" disabled>Decimal</button>
+                    <button class="filter-btn" data-filter="TIMESTAMP" disabled>Fecha/Hora</button>
+                </div>
+
+                <div class="stats">
+                    <div class="stat">
+                        <div class="stat-number" id="schemaCount">0</div>
+                        <div class="stat-label">Esquemas</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-number" id="tableCount">0</div>
+                        <div class="stat-label">Tablas</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-number" id="columnCount">0</div>
+                        <div class="stat-label">Columnas</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="content">
+                <div class="schema-list" id="schemaList">
+                    <div class="loading">Cargar un archivo JSON para comenzar</div>
+                </div>
+
+                <div class="table-grid">
+                    <div id="tableCards" class="table-cards">
+                        <div class="no-results">
+                            <h3>Bienvenido</h3>
+                            <p>Selecciona un archivo JSON para visualizar la estructura de tu base de datos</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allData = [];
+        let filteredData = [];
+        let selectedSchema = 'all';
+        let selectedDataType = 'all';
+        let searchTerm = '';
+
+        // Initialize the application
+        function initializeApp() {
+            setupEventListeners();
+            updateStats();
+            renderSchemas();
+            filterAndRenderTables();
+            enableControls();
+        }
+
+        // Enable all controls after data is loaded
+        function enableControls() {
+            document.getElementById('searchInput').disabled = false;
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.disabled = false;
+            });
+        }
+
+        // Load file from input
+        function loadFileFromInput() {
+            const fileInput = document.getElementById('jsonFileInput');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                return;
+            }
+
+            document.getElementById('fileName').textContent = file.name;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    let jsonText = e.target.result.trim();
+
+                    // Check if the entire content is wrapped in quotes (string format)
+                    if (jsonText.startsWith('"') && jsonText.endsWith('"')) {
+                        // Remove outer quotes and unescape inner quotes
+                        jsonText = jsonText.slice(1, -1);
+                        // Unescape the JSON string
+                        jsonText = jsonText.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+                    }
+
+                    allData = JSON.parse(jsonText);
+                    console.log('Datos cargados desde archivo:', allData.length, 'registros');
+                    initializeApp();
+                } catch (error) {
+                    console.error('Error al procesar el archivo:', error);
+                    alert('Error al procesar el archivo JSON: ' + error.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // Setup event listeners
+        function setupEventListeners() {
+            // File input
+            document.getElementById('jsonFileInput').addEventListener('change', loadFileFromInput);
+
+            // Search input
+            document.getElementById('searchInput').addEventListener('input', (e) => {
+                searchTerm = e.target.value.toLowerCase();
+                filterAndRenderTables();
+            });
+
+            // Filter buttons
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    if (e.target.disabled) return;
+                    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                    e.target.classList.add('active');
+                    selectedDataType = e.target.dataset.filter;
+                    filterAndRenderTables();
+                });
+            });
+        }
+
+        // Update statistics
+        function updateStats() {
+            const schemas = [...new Set(allData.map(item => item.table_schema))];
+            const tables = [...new Set(allData.map(item => `${item.table_schema}.${item.table_name}`))];
+
+            document.getElementById('schemaCount').textContent = schemas.length;
+            document.getElementById('tableCount').textContent = tables.length;
+            document.getElementById('columnCount').textContent = allData.length;
+        }
+
+        // Render schema list
+        function renderSchemas() {
+            const schemas = [...new Set(allData.map(item => item.table_schema))].sort();
+            const schemaList = document.getElementById('schemaList');
+
+            let html = `
+                <div class="schema-item ${selectedSchema === 'all' ? 'active' : ''}" data-schema="all">
+                    <div class="schema-name">Todos los Esquemas</div>
+                    <div class="schema-count">${schemas.length} esquemas</div>
+                </div>
+            `;
+
+            schemas.forEach(schema => {
+                const tableCount = [...new Set(allData.filter(item => item.table_schema === schema).map(item => item.table_name))].length;
+                html += `
+                    <div class="schema-item ${selectedSchema === schema ? 'active' : ''}" data-schema="${schema}">
+                        <div class="schema-name">${schema}</div>
+                        <div class="schema-count">${tableCount} tablas</div>
+                    </div>
+                `;
+            });
+
+            schemaList.innerHTML = html;
+
+            // Add click handlers
+            schemaList.querySelectorAll('.schema-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    document.querySelectorAll('.schema-item').forEach(i => i.classList.remove('active'));
+                    e.currentTarget.classList.add('active');
+                    selectedSchema = e.currentTarget.dataset.schema;
+                    filterAndRenderTables();
+                });
+            });
+        }
+
+        // Filter and render tables
+        function filterAndRenderTables() {
+            // Filter data based on selected schema, data type, and search term
+            filteredData = allData.filter(item => {
+                const matchesSchema = selectedSchema === 'all' || item.table_schema === selectedSchema;
+                const matchesDataType = selectedDataType === 'all' || item.data_type === selectedDataType;
+                const matchesSearch = searchTerm === '' ||
+                    item.table_name.toLowerCase().includes(searchTerm) ||
+                    item.column_name.toLowerCase().includes(searchTerm) ||
+                    item.table_schema.toLowerCase().includes(searchTerm) ||
+                    item.data_type.toLowerCase().includes(searchTerm);
+
+                return matchesSchema && matchesDataType && matchesSearch;
+            });
+
+            renderTables();
+        }
+
+        // Render table cards
+        function renderTables() {
+            const tableCards = document.getElementById('tableCards');
+
+            if (filteredData.length === 0) {
+                if (allData.length === 0) {
+                    tableCards.innerHTML = `
+                        <div class="no-results">
+                            <h3>Sin datos</h3>
+                            <p>Carga un archivo JSON para comenzar la visualización.</p>
+                        </div>
+                    `;
+                } else {
+                    tableCards.innerHTML = `
+                        <div class="no-results">
+                            <h3>No hay resultados</h3>
+                            <p>Intenta ajustar los criterios de búsqueda o filtros.</p>
+                        </div>
+                    `;
+                }
+                return;
+            }
+
+            // Group data by table
+            const tables = {};
+            filteredData.forEach(item => {
+                const tableKey = `${item.table_schema}.${item.table_name}`;
+                if (!tables[tableKey]) {
+                    tables[tableKey] = {
+                        schema: item.table_schema,
+                        name: item.table_name,
+                        columns: []
+                    };
+                }
+                tables[tableKey].columns.push({
+                    name: item.column_name,
+                    type: item.data_type,
+                    tag_name: item.tag_name,
+                    tag_value: item.tag_value
+                });
+            });
+
+            // Sort tables by name
+            const sortedTables = Object.values(tables).sort((a, b) =>
+                `${a.schema}.${a.name}`.localeCompare(`${b.schema}.${b.name}`)
+            );
+
+            let html = '';
+            sortedTables.forEach(table => {
+                html += `
+                    <div class="table-card">
+                        <div class="table-header">
+                            <div class="table-name">${highlightText(table.name, searchTerm)}</div>
+                            <div class="table-schema">${highlightText(table.schema, searchTerm)}</div>
+                            <div class="column-count">${table.columns.length} cols</div>
+                        </div>
+                        <div class="columns-list">
+                            ${table.columns.map(column => `
+                                <div class="column-item">
+                                    <div class="column-name">${highlightText(column.name, searchTerm)}</div>
+                                    <div class="column-type">${highlightText(column.type, searchTerm)}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+
+            tableCards.innerHTML = html;
+        }
+
+        // Highlight search text
+        function highlightText(text, searchTerm) {
+            if (!searchTerm) return text;
+            const regex = new RegExp(`(${searchTerm})`, 'gi');
+            return text.replace(regex, '<span class="highlight">$1</span>');
+        }
+
+        // Initialize event listeners when page loads
+        document.addEventListener('DOMContentLoaded', setupEventListeners);
+    </script>
+</body>
+</html>
