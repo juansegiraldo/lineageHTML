@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizador de Linaje de Datos</title>
+    
+    <!-- Bibliotecas externas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 1600px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #032E61 0%, #024FAD 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .controls {
+            background: #f8f9fa;
+            padding: 25px;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+            border-bottom: 2px solid #e9ecef;
+        }
+        
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+        
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            left: -9999px;
+        }
+        
+        .file-input-label {
+            background: linear-gradient(135deg, #032E61 0%, #024FAD 100%);
+            color: white;
+            padding: 12px 30px;
+            border-radius: 30px;
+            cursor: pointer;
+            display: inline-block;
+            transition: all 0.3s;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(2, 79, 173, 0.3);
+        }
+        
+        .file-input-label:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(2, 79, 173, 0.4);
+        }
+        
+        .filter-select {
+            padding: 12px 20px;
+            border-radius: 10px;
+            border: 2px solid #032E61;
+            background: white;
+            color: #333;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            min-width: 200px;
+        }
+        
+        .filter-select:hover {
+            border-color: #024FAD;
+            box-shadow: 0 0 10px rgba(2, 79, 173, 0.2);
+        }
+        
+        .legend {
+            display: flex;
+            gap: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 10px;
+            flex-wrap: wrap;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+        
+        .legend-box {
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            border-width: 3px;
+            border-style: solid;
+            background: transparent;
+        }
+        
+        #cy {
+            height: 700px;
+            background: #fafafa;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            margin: 20px;
+        }
+        
+        .stats {
+            padding: 20px;
+            background: #f8f9fa;
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            min-width: 150px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+        }
+        
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #032E61;
+        }
+        
+        .stat-label {
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        
+        .loading {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            z-index: 1000;
+        }
+        
+        .loading.active {
+            display: block;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #024FAD;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error-message {
+            display: none;
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            margin: 20px;
+            border-radius: 10px;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .error-message.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Visualizador de Linaje de Datos</h1>
+            <p>Carga tu archivo Excel para visualizar el flujo de datos</p>
+        </div>
+        
+        <div class="controls">
+            <div class="file-input-wrapper">
+                <input type="file" id="fileInput" accept=".xlsx,.xls">
+                <label for="fileInput" class="file-input-label">
+                    📁 Cargar Archivo Excel
+                </label>
+            </div>
+            
+            <select id="useCaseFilter" class="filter-select">
+                <option value="all">Todos los Casos de Uso</option>
+            </select>
+            
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-box" style="border-color: #528294;"></div>
+                    <span>Fuente de Datos</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-box" style="border-color: #011826;"></div>
+                    <span>Ingestion</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-box" style="border-color: #799CAF;"></div>
+                    <span>Almacenamiento</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-box" style="border-color: #032E61;"></div>
+                    <span>Procesamiento</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-box" style="border-color: #024FAD;"></div>
+                    <span>Visualización</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="error-message" id="errorMessage"></div>
+        
+        <div id="cy"></div>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number" id="totalFlows">0</div>
+                <div class="stat-label">Flujos Totales</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="totalNodes">0</div>
+                <div class="stat-label">Nodos</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="totalEdges">0</div>
+                <div class="stat-label">Conexiones</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="activeFlows">0</div>
+                <div class="stat-label">Flujos Activos</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p>Procesando datos...</p>
+    </div>
+
+    <script>
+        // Mapeo de logos removido - ya no se usan imágenes
+
+        // Colores para cada tipo de capa
+        const layerColors = {
+            'source': '#528294',
+            'ingestion': '#011826',
+            'storage': '#799CAF',
+            'processing': '#032E61',
+            'consumption': '#024FAD'
+        };
+
+        let cy; // Variable para Cytoscape
+        let excelData = []; // Datos del Excel
+        
+        document.getElementById('fileInput').addEventListener('change', handleFile);
+        document.getElementById('useCaseFilter').addEventListener('change', filterByUseCase);
+        
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.classList.add('active');
+            setTimeout(() => {
+                errorDiv.classList.remove('active');
+            }, 5000);
+        }
+        
+        function handleFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            document.getElementById('loading').classList.add('active');
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    excelData = XLSX.utils.sheet_to_json(firstSheet);
+                    
+                    console.log('Datos cargados:', excelData.length, 'filas');
+                    
+                    updateUseCaseFilter();
+                    processData();
+                    document.getElementById('loading').classList.remove('active');
+                } catch (error) {
+                    console.error('Error al procesar el archivo:', error);
+                    showError('Error al procesar el archivo. Asegúrate de que sea un archivo Excel válido.');
+                    document.getElementById('loading').classList.remove('active');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+        
+        function updateUseCaseFilter() {
+            try {
+                const useCases = [...new Set(excelData.map(row => row ? row['Use Case'] : null).filter(Boolean))];
+                const select = document.getElementById('useCaseFilter');
+                select.innerHTML = '<option value="all">Todos los Casos de Uso</option>';
+                useCases.forEach(useCase => {
+                    if (useCase) {
+                        const option = document.createElement('option');
+                        option.value = useCase;
+                        option.textContent = useCase;
+                        select.appendChild(option);
+                    }
+                });
+            } catch (error) {
+                console.error('Error al actualizar filtros:', error);
+            }
+        }
+        
+        function processData(filterUseCase = 'all') {
+            const elements = {
+                nodes: [],
+                edges: []
+            };
+            
+            const nodeMap = new Map();
+            let flowCount = 0;
+            let activeFlowCount = 0;
+            
+            // Mapeo de nodos únicos por tipo y nombre
+            const uniqueNodesMap = new Map();
+            
+            // Filtrar datos según el caso de uso seleccionado y si el linaje es "Si"
+            const filteredData = excelData.filter(row => {
+                if (!row) return false; // Verificar que la fila existe
+                const linaje = row['Linaje'] ? String(row['Linaje']).toLowerCase().trim() : '';
+                const shouldShow = linaje === 'si' || linaje === 'sí';
+                if (shouldShow) {
+                    if (filterUseCase !== 'all') {
+                        return row['Use Case'] === filterUseCase;
+                    }
+                    return true;
+                }
+                return false;
+            });
+            
+            console.log('Flujos filtrados:', filteredData.length);
+            
+            // Primera pasada: identificar todos los nodos únicos por tipo+nombre
+            filteredData.forEach((row, rowIndex) => {
+                if (!row) return;
+                
+                const stages = [
+                    { name: row['Data Sources'], type: 'source', layer: 0 },
+                    { name: row['Ingestion'], type: 'ingestion', layer: 1 },
+                    { name: row['Storage'], type: 'storage', layer: 2 },
+                    { name: row['Processing/Transformation'], type: 'processing', layer: 3 },
+                    { name: row['Consumption/Reporting'], type: 'consumption', layer: 4 }
+                ];
+                
+                stages.forEach((stage) => {
+                    if (stage.name && String(stage.name).trim() !== '') {
+                        const cleanName = String(stage.name).trim();
+                        const uniqueKey = `${stage.type}_${cleanName}`;
+                        
+                        if (!uniqueNodesMap.has(uniqueKey)) {
+                            uniqueNodesMap.set(uniqueKey, {
+                                name: cleanName,
+                                type: stage.type,
+                                layer: stage.layer
+                            });
+                        }
+                    }
+                });
+            });
+            
+            // Crear nodos únicos
+            uniqueNodesMap.forEach((nodeInfo, uniqueKey) => {
+                const nodeId = uniqueKey.replace(/[^\w]/g, '_');
+                nodeMap.set(uniqueKey, nodeId);
+                
+                elements.nodes.push({
+                    data: {
+                        id: nodeId,
+                        label: nodeInfo.name,
+                        type: nodeInfo.type,
+                        color: layerColors[nodeInfo.type],
+                        layer: nodeInfo.layer
+                    }
+                });
+            });
+            
+            // Segunda pasada: crear conexiones
+            const edgeSet = new Set(); // Para evitar conexiones duplicadas
+            
+            filteredData.forEach((row, rowIndex) => {
+                if (!row) return;
+                
+                activeFlowCount++;
+                flowCount++;
+                
+                const useCase = row['Use Case'] || `Flow_${rowIndex}`;
+                
+                const stages = [
+                    { name: row['Data Sources'], type: 'source' },
+                    { name: row['Ingestion'], type: 'ingestion' },
+                    { name: row['Storage'], type: 'storage' },
+                    { name: row['Processing/Transformation'], type: 'processing' },
+                    { name: row['Consumption/Reporting'], type: 'consumption' }
+                ];
+                
+                let previousNodeId = null;
+                
+                stages.forEach((stage, stageIndex) => {
+                    if (stage.name && String(stage.name).trim() !== '') {
+                        const cleanName = String(stage.name).trim();
+                        const uniqueKey = `${stage.type}_${cleanName}`;
+                        const currentNodeId = nodeMap.get(uniqueKey);
+                        
+                        if (currentNodeId && previousNodeId) {
+                            const edgeKey = `${previousNodeId}-${currentNodeId}`;
+                            
+                            // Solo crear la conexión si no existe
+                            if (!edgeSet.has(edgeKey)) {
+                                edgeSet.add(edgeKey);
+                                const edgeId = `edge_${edgeKey}_${rowIndex}`;
+                                
+                                elements.edges.push({
+                                    data: {
+                                        id: edgeId,
+                                        source: previousNodeId,
+                                        target: currentNodeId,
+                                        label: '',
+                                        useCase: useCase
+                                    }
+                                });
+                            }
+                        }
+                        
+                        if (currentNodeId) {
+                            previousNodeId = currentNodeId;
+                        }
+                    }
+                });
+            });
+            
+            // Calcular posiciones con mayor espaciado
+            const horizontalSpacing = 300; // Aumentado de 250
+            const verticalSpacing = 120; // Aumentado de 80
+            const layerOrder = ['source', 'ingestion', 'storage', 'processing', 'consumption'];
+            
+            // Agrupar nodos por capa
+            const nodesByLayer = {};
+            layerOrder.forEach(layer => {
+                nodesByLayer[layer] = [];
+            });
+            
+            elements.nodes.forEach(node => {
+                const layer = node.data.type;
+                if (nodesByLayer[layer]) {
+                    nodesByLayer[layer].push(node);
+                }
+            });
+            
+            // Asignar posiciones
+            layerOrder.forEach((layerType, layerIndex) => {
+                const nodesInLayer = nodesByLayer[layerType];
+                const layerHeight = nodesInLayer.length * verticalSpacing;
+                const startY = -layerHeight / 2;
+                
+                nodesInLayer.forEach((node, nodeIndex) => {
+                    const xPos = layerIndex * horizontalSpacing;
+                    const yPos = startY + (nodeIndex * verticalSpacing);
+                    node.position = { x: xPos, y: yPos };
+                });
+            });
+            
+            // Actualizar estadísticas
+            document.getElementById('totalFlows').textContent = excelData.length;
+            document.getElementById('totalNodes').textContent = elements.nodes.length;
+            document.getElementById('totalEdges').textContent = elements.edges.length;
+            document.getElementById('activeFlows').textContent = activeFlowCount;
+            
+            renderGraph(elements);
+        }
+        
+        function renderGraph(elements) {
+            // Destruir el gráfico anterior si existe
+            if (cy) {
+                cy.destroy();
+            }
+            
+            cy = cytoscape({
+                container: document.getElementById('cy'),
+                elements: elements,
+                style: [
+                    {
+                        selector: 'node',
+                        style: {
+                            'label': 'data(label)',
+                            'text-valign': 'center',
+                            'text-halign': 'center',
+                            'background-color': 'rgba(255, 255, 255, 0.9)',
+                            'width': 120,
+                            'height': 60,
+                            'shape': 'round-rectangle',
+                            'border-width': 3,
+                            'border-color': 'data(color)',
+                            'border-opacity': 1,
+                            'font-size': '18px',
+                            'font-weight': '600',
+                            'color': 'data(color)',
+                            'text-wrap': 'wrap',
+                            'text-max-width': '100px',
+                            'padding': '10px'
+                        }
+                    },
+                    {
+                        selector: 'edge',
+                        style: {
+                            'width': 2,
+                            'line-color': '#b0b0b0',
+                            'target-arrow-color': '#b0b0b0',
+                            'target-arrow-shape': 'triangle',
+                            'curve-style': 'bezier',
+                            'control-point-step-size': 40,
+                            'label': 'data(label)',
+                            'font-size': '9px',
+                            'text-rotation': 'autorotate',
+                            'text-margin-y': -10
+                        }
+                    },
+                    {
+                        selector: 'node:selected',
+                        style: {
+                            'border-width': 5,
+                            'border-color': '#FF5722',
+                            'background-color': 'rgba(255, 87, 34, 0.1)',
+                            'overlay-color': '#FF5722',
+                            'overlay-padding': 10,
+                            'overlay-opacity': 0.2
+                        }
+                    },
+                    {
+                        selector: 'edge:selected',
+                        style: {
+                            'width': 3,
+                            'line-color': '#FF5722',
+                            'target-arrow-color': '#FF5722'
+                        }
+                    },
+                    {
+                        selector: 'node[type="source"]',
+                        style: {
+                            'border-color': '#528294',
+                            'color': '#528294'
+                        }
+                    },
+                    {
+                        selector: 'node[type="ingestion"]',
+                        style: {
+                            'border-color': '#011826',
+                            'color': '#011826'
+                        }
+                    },
+                    {
+                        selector: 'node[type="storage"]',
+                        style: {
+                            'border-color': '#799CAF',
+                            'color': '#799CAF'
+                        }
+                    },
+                    {
+                        selector: 'node[type="processing"]',
+                        style: {
+                            'border-color': '#032E61',
+                            'color': '#032E61'
+                        }
+                    },
+                    {
+                        selector: 'node[type="consumption"]',
+                        style: {
+                            'border-color': '#024FAD',
+                            'color': '#024FAD'
+                        }
+                    }
+                ],
+                layout: {
+                    name: 'preset',
+                    padding: 50,
+                    animate: true,
+                    animationDuration: 500
+                },
+                minZoom: 0.2,
+                maxZoom: 3,
+                zoomingEnabled: true,
+                userZoomingEnabled: true,
+                panningEnabled: true,
+                userPanningEnabled: true,
+                boxSelectionEnabled: false
+            });
+            
+            // Ajustar vista para mostrar todos los elementos
+            setTimeout(() => {
+                cy.fit();
+                cy.center();
+            }, 100);
+            
+            // Eventos interactivos
+            cy.on('tap', 'node', function(evt) {
+                const node = evt.target;
+                console.log('Nodo seleccionado:', node.data('label'), '- Tipo:', node.data('type'));
+            });
+            
+            cy.on('tap', 'edge', function(evt) {
+                const edge = evt.target;
+                console.log('Conexión del caso de uso:', edge.data('useCase'));
+            });
+            
+            // Hover effect
+            cy.on('mouseover', 'node', function(evt) {
+                const node = evt.target;
+                node.style('border-width', 4);
+            });
+            
+            cy.on('mouseout', 'node', function(evt) {
+                const node = evt.target;
+                node.style('border-width', 3);
+            });
+        }
+        
+        function filterByUseCase() {
+            const selectedUseCase = document.getElementById('useCaseFilter').value;
+            processData(selectedUseCase);
+        }
+        
+        // Inicializar con un gráfico vacío
+        renderGraph({ nodes: [], edges: [] });
+        
+        // Mensaje de bienvenida
+        console.log('Visualizador de Linaje de Datos cargado correctamente');
+        console.log('Por favor, carga un archivo Excel para comenzar');
+    </script>
+</body>
+</html>
